@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Ростелеком - Мониторинг</title>
+    <link rel="icon" href="/static/images/logo_full.png">
+    <style>
+        :root { --purple: #7e00ff; --bg: #f0f2f5; }
+        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', sans-serif; background: var(--purple); overflow: hidden; }
+        
+        .header { display: flex; align-items: center; padding: 0 25px; height: 60px; color: white; }
+        .logo { display: flex; align-items: center; font-size: 22px; font-weight: bold; margin-right: 30px; }
+        .logo img { height: 30px; margin-right: 10px; }
+        
+        .nav { display: flex; gap: 15px; }
+        .nav-item { position: relative; cursor: pointer; padding: 20px 5px; font-size: 16px; }
+        .dropdown { display: none; position: absolute; top: 100%; left: 0; background: white; color: black; 
+                    min-width: 170px; border-radius: 0 0 10px 10px; box-shadow: 0 8px 16px rgba(0,0,0,0.2); z-index: 100; }
+        .nav-item:hover .dropdown { display: block; }
+        .drop-link { display: block; padding: 12px 20px; text-decoration: none; color: #333; font-size: 14px; }
+        .drop-link:hover { background: #f0f0f0; }
+
+        /* Поиск как на рисунке */
+        .search-wrap { margin-left: auto; }
+        .search-box { background: white; border-radius: 25px; padding: 5px 15px; display: flex; align-items: center; width: 250px; height: 34px; }
+        .search-icon { font-size: 18px; margin-right: 8px; color: #333; }
+        .search-box input { border: none !important; outline: none !important; width: 100%; font-size: 16px; background: transparent; }
+
+        .main { background: var(--bg); height: calc(100vh - 80px); margin: 0 15px 15px 15px; border-radius: 20px; padding: 30px; overflow-y: auto; }
+        
+        /* Сетка и список */
+        .grid-view { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 25px; }
+        .list-view { display: flex; flex-direction: column; gap: 10px; }
+
+        .card { background: white; text-align: center; cursor: pointer; padding: 15px; border-radius: 15px; transition: 0.2s; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .card:hover { background: #e0e4e9; }
+        .card img { width: 100px; margin-bottom: 10px; }
+        .card h4 { margin: 5px 0; font-size: 14px; }
+        .card p { margin: 0; color: #777; font-size: 12px; }
+        .list-view .card { display: flex; align-items: center; text-align: left; padding: 10px 20px; }
+        .list-view .card img { width: 45px; margin-right: 20px; }
+        .list-view .card .actions { margin-left: auto; display: flex !important; }
+
+        .actions { display: none; margin-top: 10px; gap: 8px; justify-content: center; }
+        .btn-edit { background: #ffc107; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer; }
+        .btn-del { background: #ff4d4d; border: none; padding: 5px 10px; border-radius: 5px; color: white; cursor: pointer; }
+
+        /* ОКНО ТЕРМИНАЛА КАК В WINDOWS */
+        #term { 
+            display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+            width: 700px; background: black; z-index: 2000; border: 1px solid #777; 
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5); font-family: 'Consolas', 'Lucida Console', monospace;
+        }
+        .term-h { 
+            background: white; color: black; padding: 4px 12px; display: flex; 
+            justify-content: space-between; font-size: 14px; font-family: sans-serif;
+        }
+        .term-b { 
+            padding: 10px; height: 350px; overflow-y: auto; white-space: pre-wrap; 
+            color: #00ff00; font-size: 14px; line-height: 1.2;
+        }
+
+        .modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 25px; border-radius: 15px; z-index: 1500; width: 300px; box-shadow: 0 0 20px rgba(0,0,0,0.3); }
+        .overlay { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index: 1400; }
+        .modal input { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div class="logo"><img src="/static/images/logo_white.png"> Ростелеком</div>
+        <div class="nav">
+            <div class="nav-item">Файл
+                <div class="dropdown">
+                    <a href="/export" class="drop-link">Экспорт (JSON)</a>
+                    <a href="/" class="drop-link" style="color:red">Выход</a>
+                </div>
+            </div>
+            <div class="nav-item" onclick="openAdd()">Создать</div>
+            <div class="nav-item">Вид
+                <div class="dropdown">
+                    <a href="#" class="drop-link" onclick="setView('grid')">🔳 Сетка</a>
+                    <a href="#" class="drop-link" onclick="setView('list')">≡ Список</a>
+                    <a href="#" class="drop-link" onclick="pingAll()">⚡️ Пинговать все</a>
+                </div>
+            </div>
+            <div class="nav-item" onclick="location.reload()">Обновить</div>
+        </div>
+        <div class="search-wrap">
+            <div class="search-box">
+                <span class="search-icon">🔍</span>
+                <input type="text" id="search" placeholder="Поиск" onkeyup="filter()">
+            </div>
+        </div>
+    </div>
+
+    <div class="main">
+        <div class="grid-view" id="swContainer">
+            {% for s in switches %}
+            <div class="card" onclick="toggleActions(this)" ondblclick="runPing('{{ s.ip }}', this)" data-street="{{ s.street }}" data-ip="{{ s.ip }}">
+                <img src="/static/images/switch_off.png" class="sw-img">
+                <div class="info">
+                    <h4>{{ s.street }}</h4>
+                    <p>IP: {{ s.ip }}</p>
+                </div>
+                <div class="actions">
+                    <button class="btn-edit" onclick="event.stopPropagation(); openEdit('{{ s.id }}','{{ s.street }}','{{ s.ip }}')">✏️</button>
+<button class="btn-del" onclick="event.stopPropagation(); if(confirm('Удалить?')) location.href='/delete_switch/{{ s.id }}'">🗑️</button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- ТЕРМИНАЛ -->
+    <div id="term">
+        <div class="term-h">
+            <span>Администратор:</span>
+            <span onclick="closeTerm()" style="cursor:pointer">✕</span>
+        </div>
+        <div class="term-b" id="termBody"></div>
+    </div>
+
+    <div class="overlay" id="overlay" onclick="closeModals()"></div>
+
+    <div class="modal" id="modalAdd">
+        <h3>Новое устройство</h3>
+        <form action="/add_switch" method="POST">
+            <input type="text" name="street" placeholder="Улица и дом" required>
+            <input type="text" name="ip" placeholder="IP адрес" required>
+            <button type="submit" style="width:100%; padding:10px; background:var(--purple); color:white; border:none; border-radius:5px;">Добавить</button>
+        </form>
+    </div>
+
+    <div class="modal" id="modalEdit">
+        <h3>Редактировать</h3>
+        <form action="/edit_switch" method="POST">
+            <input type="hidden" name="id" id="editId">
+            <input type="text" name="street" id="editStreet" required>
+            <input type="text" name="ip" id="editIp" required>
+            <button type="submit" style="width:100%; padding:10px; background:#28a745; color:white; border:none; border-radius:5px;">Сохранить</button>
+        </form>
+    </div>
+
+    <script>
+        function toggleActions(card) {
+            if (!document.getElementById('swContainer').classList.contains('list-view')) {
+                document.querySelectorAll('.actions').forEach(a => a.style.display = 'none');
+                card.querySelector('.actions').style.display = 'flex';
+            }
+        }
+
+        function setView(type) {
+            const container = document.getElementById('swContainer');
+            container.className = (type === 'grid') ? 'grid-view' : 'list-view';
+            document.querySelectorAll('.actions').forEach(a => {
+                a.style.display = (type === 'list') ? 'flex' : 'none';
+            });
+        }
+
+        // ФУНКЦИЯ ПИНГА КАК НА КАРТИНКЕ
+        function runPing(ip, card) {
+            const term = document.getElementById('term');
+            const body = document.getElementById('termBody');
+            term.style.display = 'block';
+            
+            // Начальный текст системы
+            body.innerHTML = `<span style="color: #aaa;">Microsoft Windows [Version 10.0.19045.3693]\n(c) Корпорация Майкрософт (Microsoft Corporation). Все права защищены.\n\n</span>`;
+            body.innerHTML += `C:\\Users\\Admin>ping ${ip} -n 4\n\n`;
+            body.innerHTML += `Обмен пакетами с ${ip} по с 32 байтами:\n`;
+            
+            let isOk = ip.startsWith('10.49.');
+            let i = 0;
+            let timer = setInterval(() => {
+                if (isOk) {
+                    body.innerHTML += `Ответ от ${ip}: число байт=32 время=1мс TTL=64\n`;
+                } else {
+                    body.innerHTML += `Превышен интервал ожидания для запроса.\n`;
+                }
+                
+                i++;
+                if (i === 4) {
+                    clearInterval(timer);
+                    body.innerHTML += `\nСтатистика Ping для ${ip}:\n`;
+                    body.innerHTML += `    Пакетов: отправлено = 4, получено = ${isOk ? 4 : 0}, потеряно = ${isOk ? 0 : 4}\n`;
+                    body.innerHTML += `(${isOk ? 0 : 100}% потерь)\n`;
+                    body.innerHTML += `Приблизительное время приема-передачи:\n`;
+                    body.innerHTML += `    Минимальное = 0м
+сек, Максимальное = 1 мсек, Среднее = 0 мсек\n\n`;
+                    body.innerHTML += `C:\\Users\\Admin>_`;
+                    
+                    card.querySelector('.sw-img').src = isOk ? '/static/images/switch_on.png' : '/static/images/switch_off.png';
+                }
+                body.scrollTop = body.scrollHeight; 
+            }, 600);
+        }
+
+        function filter() {
+            let val = document.getElementById('search').value.toLowerCase();
+            document.querySelectorAll('.card').forEach(c => {
+                let text = (c.dataset.street + c.dataset.ip).toLowerCase();
+                c.style.display = text.includes(val) ? '' : 'none';
+            });
+        }
+
+        function pingAll() {
+            document.querySelectorAll('.card').forEach(card => {
+                let ip = card.dataset.ip;
+                card.querySelector('.sw-img').src = ip.startsWith('10.49.') ? '/static/images/switch_on.png' : '/static/images/switch_off.png';
+            });
+            alert('Массовая проверка завершена');
+        }
+
+        function openAdd() { document.getElementById('modalAdd').style.display='block'; document.getElementById('overlay').style.display='block'; }
+        function openEdit(id, st, ip) {
+            document.getElementById('editId').value = id;
+            document.getElementById('editStreet').value = st;
+            document.getElementById('editIp').value = ip;
+            document.getElementById('modalEdit').style.display='block';
+            document.getElementById('overlay').style.display='block';
+        }
+        function closeModals() { document.querySelectorAll('.modal').forEach(m=>m.style.display='none'); document.getElementById('overlay').style.display='none'; }
+        function closeTerm() { document.getElementById('term').style.display='none'; }
+    </script>
+</body>
+</html>
